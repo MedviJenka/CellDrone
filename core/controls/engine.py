@@ -1,35 +1,62 @@
 from djitellopy import tello
 from dataclasses import dataclass
-from exceptions.connection import ConnectionIssue
+from core.exceptions.connection import ConnectionIssue
+from abc import ABC
+from time import sleep
 
 
-@dataclass
-class BeforeStartup:
+class Drone(ABC):
 
     drone: tello = tello.Tello()
 
-    def check_status(self) -> None:
+
+@dataclass
+class BeforeStartup(Drone):
+
+    def check_connection_status(self) -> None:
         try:
             self.drone.connect()
-            temperature_fahrenheit = self.drone.get_temperature()
-            temperature_celsius = round((temperature_fahrenheit - 35) * 5 / 9)
-            battery = self.drone.get_battery()
-            print("CONNECTED")
-            print(f'battery: { battery }%')
-            print(f'temperature: approximately { temperature_celsius } C')
-
+            print("\nCONNECTED")
         except ConnectionIssue:
             raise ConnectionIssue
 
-    @staticmethod
-    def begin(current_class: object, methods: list[str]) -> None:
-        for each_method in methods:
-            getattr(current_class, each_method)()
+    def check_data(self) -> None:
+        temperature_fahrenheit = self.drone.get_temperature()
+        temperature_celsius = round((temperature_fahrenheit - 35) * 5 / 9)
+        battery = self.drone.get_battery()
+        print(f'battery: { battery }%')
+        print(f'temperature: approximately { temperature_celsius } C')
+
+
+@dataclass
+class AfterStartup:
+    ...
+
+
+@dataclass
+class BeforeTakeOff:
+    ...
+
+
+@dataclass
+class Controls(Drone):
+
+    def takeoff(self) -> None:
+        self.drone.takeoff()
+        sleep(2)
+        self.drone.send_rc_control(0,0,0,0)
+        self.drone.land()
+
+
+def begin(current_class: object, methods: list[str]) -> None:
+    for each_method in methods:
+        getattr(current_class, each_method)()
 
 
 def test() -> None:
-    before_startup = BeforeStartup()
-    before_startup.begin(BeforeStartup(), ['check_status'])
+    begin(BeforeStartup(), ['check_connection_status',
+                            'check_data'])
+    begin(Controls(), ['takeoff'])
 
 
 if __name__ == '__main__':
